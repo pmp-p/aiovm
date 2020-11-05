@@ -31,7 +31,7 @@ if lines[-1]:
 
 
 # get bytecode for async vm.
-code = compile( "\n".join(lines), filename, "exec")
+bcode = compile( "\n".join(lines), filename, "exec")
 
 
 # asyncifier for the stdlib, the asyncified function bytecode must be in the async frame
@@ -76,5 +76,5 @@ async def async_io_host(vm):
 aio.loop.create_task( async_io_host(vm) )
 
 # start async vm loop
-aio.loop.create_task( async_run_code(vm, code, f_globals = main_module.__dict__) )
+aio.loop.create_task( async_run_code(vm, bcode, f_globals = main_module.__dict__) )
 

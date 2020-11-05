@@ -1,10 +1,22 @@
 import sys
-import asyncio as aio
+
+# http://www.linusakesson.net/programming/tty/
+# fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+
+
+try:
+    aio
+except:
+    import asyncio as aio
+    aio.loop = aio.get_event_loop()
+
 import time
 
-class draw_tui:
+class block:
     # use direct access, it is absolute addressing on raw terminal.
     out = sys.__stdout__.write
+
 
     # save cursor
     def __enter__(self):
@@ -33,8 +45,10 @@ class draw_tui:
         self.out("\x1b[{};{}H{}{}{}".format(z,x,dx,dz," ".join(a)))
 
 
-async def render_ui():
 
+root = block()
+
+async def render_ui(window):
 
     def box(t,x,y,z):
         lines = t.split('\n')
@@ -48,9 +62,8 @@ async def render_ui():
             print( '│%s│' % t, x=x, z=z)
         print( '└%s┘' % fill, x=x, z=z+1)
 
-    draw_ui = draw_tui()
     while not aio.loop.is_closed():
-        with draw_ui as print:
+        with window as print:
             # draw a clock
             t =  " {:02}:{:02}:{:02} ☢ 99% ".format( *time.localtime()[3:6] )
             box(t,x=-20,y=-3,z=-2)
@@ -59,4 +72,4 @@ async def render_ui():
         await aio.sleep(1)
         sys.stdout.flush()
 
-aio.get_event_loop().create_task(render_ui())
+aio.loop.create_task(render_ui(root))

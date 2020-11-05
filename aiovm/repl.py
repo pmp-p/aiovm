@@ -1,34 +1,39 @@
 import sys
 import builtins
-import asyncio
 
-from asyncio import *
-builtins.aio = sys.modules[__name__]
-sys.modules['asyncio'] = aio
+# mock pythons.aio
 
-aio.loop = aio.get_event_loop()
-aio.loop.paused = False
+if sys.modules.get('asyncio',None) is None and sys.modules.get('aio',None) is None:
+    print(" -------- using pythons.aio mock NO wasm network support or websockets ------- ")
+    import asyncio
 
-async def asleep_ms(ms=0):
-    await asyncio.sleep(float(ms)/1000)
+    from asyncio import *
+    builtins.aio = sys.modules[__name__]
+    sys.modules['asyncio'] = aio
 
-aio.asleep_ms = asleep_ms
-aio.asleep = aio.sleep
+    aio.loop = aio.get_event_loop()
+    aio.paused = False
+
+    async def asleep_ms(ms=0):
+        await asyncio.sleep(float(ms)/1000)
+
+    aio.asleep_ms = asleep_ms
+    aio.asleep = aio.sleep
+
+    # TODO: display traceback safely at toplevel
+    import traceback
+
+    def print_exception(e, out=sys.stderr, **kw):
+        kw["file"] = out
+        traceback.print_exc(**kw)
+
+    sys.print_exception = print_exception
+
 
 
 scheduled = None
 scheduler = None
 wrapper_ref = None
-
-
-# TODO: display traceback safely at toplevel
-import traceback
-
-def print_exception(e, out=sys.stderr, **kw):
-    kw["file"] = out
-    traceback.print_exc(**kw)
-
-sys.print_exception = print_exception
 
 
 # ======== have asyncio loop runs interleaved with repl
@@ -74,7 +79,7 @@ def init():
 def step(arg):
     global aio
     al = aio.loop
-    if al.paused is None:
+    if aio.paused is None:
         al.close()
         return
 
@@ -82,15 +87,15 @@ def step(arg):
         sys.__stdout__.write(f"\n:async: stopped\n{sys.ps1}")
         return
 
-    if not al.paused:
+    if not aio.paused:
         al.call_soon(al.stop)
         al.run_forever()
 
     if arg:
-        scheduled.append((aio.step, arg))
+        scheduled.append((step, arg))
 
 init()
-scheduled.append((aio.step, True))
+scheduled.append((step, True))
 
 del init
 
