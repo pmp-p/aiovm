@@ -49,8 +49,6 @@ sys.path.append('.')
 
 import asyncio
 
-import six
-
 
 # add stdlib / wapy-lib / pycopy-lib / micropython-lib / etc ... to path
 sys.path.append( __file__.rsplit('/',2)[0] )
@@ -261,8 +259,8 @@ class Frame(object):
         # We don't keep f_lineno up to date, so calculate it based on the
         # instruction address and the line number table.
         lnotab = self.f_code.co_lnotab
-        byte_increments = six.iterbytes(lnotab[0::2])
-        line_increments = six.iterbytes(lnotab[1::2])
+        byte_increments = iter(lnotab[0::2])
+        line_increments = iter(lnotab[1::2])
 
         byte_num = 0
         line_num = self.f_code.co_firstlineno
@@ -323,13 +321,6 @@ MONITOR = 0
 if __debug__:
     # Create a repr that won't overflow.
     import logging
-    if 0:
-        from six.moves import reprlib
-        repr_obj = reprlib.Repr()
-        repr_obj.maxother = 120
-        repper = repr_obj.repr
-    else:
-        repper = repr
     log = logging.getLogger(__name__)
 
 iop_func = {}
@@ -1221,7 +1212,7 @@ class vm_CORE:
         return self.frame.block_stack.pop()
 
     def make_frame(self, code, callargs={}, f_globals=None, f_locals=None, f_closure=None):
-        log.info("make_frame: code=%r, callargs=%s" % (code, repper(callargs)))
+        log.info("make_frame: code=%r, callargs=%s" % (code, repr(callargs)))
         if f_globals is not None:
             f_globals = f_globals
             if f_locals is None:
@@ -1912,8 +1903,8 @@ class vm_INTERFACE:
         if arguments:
             op += " %r" % (arguments[0],)
         indent = "    " * (len(self.frames) - 1)
-        stack_rep = repper(self.frame.stack)
-        block_stack_rep = repper(self.frame.block_stack)
+        stack_rep = repr(self.frame.stack)
+        block_stack_rep = repr(self.frame.block_stack)
 
         log.info("  %sdata: %s" % (indent, stack_rep))
         log.info("  %sblks: %s" % (indent, block_stack_rep))
