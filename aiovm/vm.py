@@ -347,9 +347,8 @@ XOR.ixor
     iop_func[key] = getattr(operator, value)
     iop_keys[key] = "__%s__" % value
 
-
-del key, value
-
+del key
+del value
 
 pending = {}
 
@@ -441,23 +440,7 @@ async def spin_res(vm, result):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-class vm_TRY_FINALLY(object):
+class vm_TRY_FINALLY37(object):
 
     # https://bugs.python.org/issue33387
 
@@ -525,6 +508,184 @@ class vm_TRY_FINALLY(object):
         else:  # pragma: no cover
             raise VirtualMachineError("Confused END_FINALLY")
         return why
+
+# 3.8
+class vm_TRY_FINALLY(vm_TRY_FINALLY37):
+    def byte_BEGIN_FINALLY(self):
+        """Pushes NULL onto the stack for using it in END_FINALLY, POP_FINALLY, WITH_CLEANUP_START and WITH_CLEANUP_FINISH. Starts the finally block."""
+        self.push(None)
+
+    def byte_END_FINALLY(self):
+        """Terminates a finally clause. The interpreter recalls whether the
+        exception has to be re-raised or execution has to be continued
+        depending on the value of TOS.
+        * If TOS is NULL (pushed by BEGIN_FINALLY) continue from the next instruction.
+          TOS is popped.
+        * If TOS is an integer (pushed by CALL_FINALLY), sets the bytecode counter to TOS.
+          TOS is popped.
+        * If TOS is an exception type (pushed when an exception has
+          been raised) 6 values are popped from the stack, the first
+          three popped values are used to re-raise the exception and
+          the last three popped values are used to restore the
+          exception state. An exception handler block is removed from
+          the block stack.
+        """
+        v = self.pop()
+        if v is None:
+            why = None
+        elif isinstance(v, int):
+            self.jump(v)
+            why = "return"
+        elif issubclass(v, BaseException):
+            # from trepan.api import debug; debug()
+            exctype = v
+            val = self.pop()
+            tb = self.pop()
+            self.last_exception = (exctype, val, tb)
+
+            raise VirtualMachineError("END_FINALLY not finished yet")
+            # FIXME: pop 3 more values
+            why = "reraise"
+        else:  # pragma: no cover
+            raise VirtualMachineError("Confused END_FINALLY")
+        return why
+
+
+    def byte_CALL_FINALLY(self, delta):
+        """Pushes the address of the next instruction onto the stack and
+        increments bytecode counter by delta. Used for calling the
+        finally block as a "subroutine".
+        """
+        # Is it f_lasti or the one after that
+        self.push(self.frame.f_lasti)
+        self.jump(delta)
+
+    def byte_POP_FINALLY(self, preserve_tos):
+        """Cleans up the value stack and the block stack. If preserve_tos is
+        not 0 TOS first is popped from the stack and pushed on the stack after
+        performing other stack operations:
+        * If TOS is NULL or an integer (pushed by BEGIN_FINALLY or CALL_FINALLY) it is popped from the stack.
+        * If TOS is an exception type (pushed when an exception has been raised) 6 values are popped from the
+          stack, the last three popped values are used to restore the exception state. An exception handler
+          block is removed from the block stack.
+        It is similar to END_FINALLY, but doesn’t change the bytecode
+        counter nor raise an exception. Used for implementing break,
+        continue and return in the finally block.
+        """
+        v = self.pop()
+        if v is None:
+            why = None
+        elif issubclass(v, BaseException):
+            # from trepan.api import debug; debug()
+            exctype = v
+            val = self.pop()
+            tb = self.pop()
+            self.last_exception = (exctype, val, tb)
+
+            # FIXME: pop 3 more values
+            why = "reraise"
+            raise VirtualMachineError("POP_FINALLY not finished yet")
+        else:  # pragma: no cover
+            raise VirtualMachineError("Confused POP_FINALLY")
+        return why
+
+
+    def byte_LOAD_ASSERTION_ERROR(self):
+        """
+        Pushes AssertionError onto the stack. Used by the `assert` statement.
+        """
+        self.push(AssertionError)
+
+    def byte_LIST_TO_TUPLE(self):
+        """
+        Pops a list from the stack and pushes a tuple containing the same values.
+        """
+        self.push(tuple(self.pop()))
+
+    def byte_IS_OP(self, invert: int):
+        """Performs is comparison, or is not if invert is 1."""
+        TOS1, TOS = self.popn(2)
+        if invert:
+            self.push(TOS1 is not TOS)
+        else:
+            self.push(TOS1 is TOS)
+
+
+    def byte_CONTAINS_OP(self, invert: int):
+        """Performs in comparison, or not in if invert is 1."""
+        TOS1, TOS = self.popn(2)
+        if invert:
+            self.push(TOS1 not in TOS)
+        else:
+            self.push(TOS1 in TOS)
+        return
+
+    def byte_LIST_EXTEND(self, i):
+        """Calls list.extend(TOS1[-i], TOS). Used to build lists."""
+        TOS = self.pop()
+        destination = self.peek(i)
+        assert isinstance(destination, list)
+        destination.extend(TOS)
+
+    def byte_SET_UPDATE(self, i):
+        """Calls set.update(TOS1[-i], TOS). Used to build sets."""
+        TOS = self.pop()
+        destination = self.peek(i)
+        assert isinstance(destination, set)
+        destination.update(TOS)
+
+    def byte_DICT_MERGE(self, i):
+        """Like DICT_UPDATE but raises an exception for duplicate keys."""
+        TOS = self.pop()
+        assert isinstance(TOS, dict)
+        destination = self.peek(i)
+        assert isinstance(destination, dict)
+        dups = set(destination.keys()) & set(TOS.keys())
+        if bool(dups):
+            raise RuntimeError("Duplicate keys '%s' in DICT_MERGE" % dups)
+        destination.update(TOS)
+
+    def byte_DICT_UPDATE(self, i):
+        """Calls dict.update(TOS1[-i], TOS). Used to build dicts."""
+        TOS = self.pop()
+        assert isinstance(TOS, dict)
+        destination = self.peek(i)
+        assert isinstance(destination, dict)
+        destination.update(TOS)
+
+
+
+
+#FIXME:
+    def byte_END_ASYNC_FOR(self):
+        """Terminates an `async for1 loop. Handles an exception raised when
+        awaiting a next item. If TOS is StopAsyncIteration pop 7 values from
+        the stack and restore the exception state using the second three of
+        them. Otherwise re-raise the exception using the three values from the
+        stack. An exception handler block is removed from the block stack."""
+
+        raise VirtualMachineError("END_ASYNC_FOR not implemented yet")
+
+
+    def byte_RERAISE(self):
+        # FIXME
+        raise RuntimeError("RERAISE not implemented yet")
+        pass
+
+
+    def byte_WITH_EXCEPT_START(self):
+        # FIXME
+        raise RuntimeError("WITH_EXCEPT_START not implemented yet")
+        pass
+
+
+
+
+
+
+
+
+
 
 
 class vm_STACK:
@@ -1639,11 +1800,12 @@ class vm_CORE:
         the_set = self.peek(count)
         the_set.add(val)
 
+# Changed from 2.4: Map value is TOS and map key is TOS1. Before, those were reversed.
     def byte_MAP_ADD(self, count):
+# UNSURE!
         val, key = self.popn(2)
         the_map = self.peek(count)
         the_map[key] = val
-
 
 
 
