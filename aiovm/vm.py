@@ -440,7 +440,7 @@ async def spin_res(vm, result):
 
 
 
-class vm_TRY_FINALLY37(object):
+class vm_TRY_FINALLY(object):
 
     # https://bugs.python.org/issue33387
 
@@ -448,11 +448,6 @@ class vm_TRY_FINALLY37(object):
     # PR https://github.com/python/cpython/pull/6641
 
 
-    def byte_BEGIN_FINALLY(self):
-        raise VirtualMachineError("N/I")
-
-    def byte_SETUP_FINALLY(self, dest):
-        self.push_block("finally", dest)
 
     def byte_WITH_CLEANUP_START(self):
         u = self.top()
@@ -486,7 +481,7 @@ class vm_TRY_FINALLY37(object):
         if type(u) is type and issubclass(u, BaseException) and res:
             self.push("silenced")
 
-    def byte_END_FINALLY(self):
+    def byte_END_FINALLY_37(self):
         v = self.pop()
         if isinstance(v, str):
             why = v
@@ -510,10 +505,13 @@ class vm_TRY_FINALLY37(object):
         return why
 
 # 3.8
-class vm_TRY_FINALLY(vm_TRY_FINALLY37):
     def byte_BEGIN_FINALLY(self):
         """Pushes NULL onto the stack for using it in END_FINALLY, POP_FINALLY, WITH_CLEANUP_START and WITH_CLEANUP_FINISH. Starts the finally block."""
         self.push(None)
+
+    def byte_SETUP_FINALLY(self, dest):
+        self.push_block("finally", dest)
+
 
     def byte_END_FINALLY(self):
         """Terminates a finally clause. The interpreter recalls whether the
@@ -589,6 +587,7 @@ class vm_TRY_FINALLY(vm_TRY_FINALLY37):
             raise VirtualMachineError("Confused POP_FINALLY")
         return why
 
+# 3.9
 
     def byte_LOAD_ASSERTION_ERROR(self):
         """
@@ -654,9 +653,9 @@ class vm_TRY_FINALLY(vm_TRY_FINALLY37):
         destination.update(TOS)
 
 
-
-
 #FIXME:
+
+
     def byte_END_ASYNC_FOR(self):
         """Terminates an `async for1 loop. Handles an exception raised when
         awaiting a next item. If TOS is StopAsyncIteration pop 7 values from
@@ -1055,7 +1054,7 @@ if not 'sync' in sys.argv:
                     #print("903:",byteName, arguments, opoffset)
 
                     if byteName=="IMPORT_NAME":
-                        #print("906: dispatch-async aio_suspend spin==", why)
+                        #print("1057: dispatch-async aio_suspend spin==", why)
                         if self.ASYNC and (arguments[0] == 'aio_suspend'):
                             why = await spin_res(self, bytecode_fn(*arguments))
 
@@ -1305,7 +1304,7 @@ class vm_CORE:
             return
 
         if len(VirtualMachine.AS_CALL):
-            print(f"  ********** PENDING Q not empty {VirtualMachine.AS_CALL} ")
+            print(f"  ********** PENDING Q not empty {len(VirtualMachine.AS_CALL)} ")
 
         # could be the real thing, or None + a stacked coro
 
@@ -1964,7 +1963,7 @@ class vm_CORE:
     ## Importing
     def byte_IMPORT_NAME(self, name):
         level, fromlist = self.popn(2)
-        #print("1812:byte_IMPORT_NAME",name,level,fromlist)
+        print("1968:byte_IMPORT_NAME",name,level,fromlist)
         frame = self.frame
         self.push(__import__(name, frame.f_globals, frame.f_locals, fromlist, level))
 

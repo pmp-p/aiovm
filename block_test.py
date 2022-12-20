@@ -1,4 +1,5 @@
-#====================================================================================================================
+#===========================================================================
+# convert a blocking stdlib function to a non blocking one
 
 def aio_sleep(t):
     print("aio",aio)
@@ -10,21 +11,16 @@ def aio_sleep(t):
 
 time = asyncify("time",aio_sleep)
 
-#===================================================================================================================
 
-
-
+#==========================================================================
 
 
 import time
-#import p ygame
+#import pygame
 import pickle
 import math
 import random
 import os
-
-time = sys.modules['time']
-
 
 T=10
 
@@ -33,4 +29,6 @@ for i in range(1):
     print(f"""i'm blocking for {T} seconds with""",time.sleep)
     time.sleep(T)
     print('exiting previously "blocking" block')
+
+
 

@@ -15,14 +15,19 @@ source = ()
 lines = []
 
 # preload imports
-pygame = False
+
+imports = {}
+
 for line in open(filename,'r').readlines():
     ls = line.strip()
 
-    if ls.startswith('import '):
-        pygame = pygame or (ls.find('pygame')>=0)
-        exec(compile(ls, filename, "exec"), globals(), globals() )
-    lines.append( line )
+    if ls.startswith('import ') and not ls.endswith(' aio_suspend'):
+        exec(compile(ls, filename, "exec"), imports, imports )
+        lines.append( '#'+line )
+    else:
+        lines.append( line )
+
+
 
 # We have the source.  `compile` still needs the last line to be clean,
 # so make sure it is, then compile a code object from it.
@@ -31,7 +36,13 @@ if lines[-1]:
 
 
 # get bytecode for async vm.
-bcode = compile( "\n".join(lines), filename, "exec")
+code = "".join(lines)
+print(f"""
+______________________________________________________
+{code}
+______________________________________________________
+""")
+bcode = compile( code , filename, "exec")
 
 
 # asyncifier for the stdlib, the asyncified function bytecode must be in the async frame
@@ -48,8 +59,10 @@ def asyncify(modname,func):
 
 builtins.asyncify = asyncify
 
-
+pygame = imports.get('pygame', False)
 if pygame:
+    #builtins.imports = imports
+    main_module.__dict__.update( **imports )
     pygame.init()
     pygame.font.init()
     pygame.display.set_mode((1,1))
